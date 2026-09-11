@@ -51,6 +51,12 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
+if(TARGET nlohmann_json_schema_validator)
+  set(json_schema_validator_target nlohmann_json_schema_validator)
+else()
+  set(json_schema_validator_target nlohmann_json_schema_validator::validator)
+endif()
+
 # Backward compatibility for yaml-cpp 0.7 that exports a yaml-cpp target
 # while 0.8.0 and above export yaml-cpp::yaml-cpp
 if (TARGET yaml-cpp)
@@ -107,7 +113,7 @@ target_link_libraries(rmf_fleet_adapter
     rmf_websocket::rmf_websocket
     nlohmann_json::nlohmann_json
     rmf_api_msgs::rmf_api_msgs
-    nlohmann_json_schema_validator::validator
+    ${json_schema_validator_target}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -165,7 +171,7 @@ if (BUILD_TESTING)
       rmf_fleet_adapter
       rmf_utils::rmf_utils
       rmf_api_msgs::rmf_api_msgs
-      nlohmann_json_schema_validator::validator
+      ${json_schema_validator_target}
   )
 
   target_compile_definitions(test_rmf_fleet_adapter
