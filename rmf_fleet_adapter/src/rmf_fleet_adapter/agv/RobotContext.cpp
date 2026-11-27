@@ -161,6 +161,11 @@ rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
   const Eigen::Vector3d position,
   const rmf_traffic::Time start_time) const
 {
+  auto lift_starts =
+    _lift_session_starts(context, map_name, position, start_time);
+  if (!lift_starts.empty())
+    return lift_starts;
+
   const auto& graph = context.navigation_graph();
   auto unfiltered = unfiltered_compute_plan_starts(
     graph, map_name, position, start_time);
@@ -169,6 +174,55 @@ rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
     return process_locations(std::move(unfiltered), context);
 
   return {};
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::_lift_session_starts(
+  const RobotContext& context,
+  const std::string& map_name,
+  const Eigen::Vector3d& position,
+  const rmf_traffic::Time start_time) const
+{
+  // While a robot rides a lift that it summoned from inside the car, it keeps
+  // reporting the map of the floor it boarded from until it can localize onto
+  // the destination floor. The starts on that map are either filtered out by
+  // _lift_boundary_filter, which makes the robot lost, or left on the car
+  // vertex of the boarding floor. Use the lift session instead.
+  const auto* session = context.current_lift_destination();
+  if (!session || !session->requested_from_inside
+    || session->destination_floor == map_name)
+  {
+    return {};
+  }
+
+  const auto& graph = context.navigation_graph();
+  const auto lift = graph.find_known_lift(session->lift_name);
+  const Eigen::Vector2d p = position.block<2, 1>(0, 0);
+  if (!lift || !lift->is_in_lift(p))
+    return {};
+
+  // Only waypoint starts are given. A start on a lane that leaves the car
+  // would skip the LiftDoorOpen event at the entry of that lane.
+  rmf_traffic::agv::Plan::StartSet starts;
+  for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+  {
+    const auto& wp = graph.get_waypoint(i);
+    if (wp.get_map_name() != session->destination_floor)
+      continue;
+
+    if (!wp.in_lift() || wp.in_lift()->name() != lift->name())
+      continue;
+
+    // Use the same merge rule as rmf_traffic::agv::compute_plan_starts
+    const auto merge_radius =
+      wp.merge_radius().value_or(max_merge_waypoint_distance);
+    if ((p - wp.get_location()).norm() < merge_radius)
+      return {rmf_traffic::agv::Plan::Start(start_time, i, position[2])};
+
+    starts.emplace_back(start_time, i, position[2], p);
+  }
+
+  return starts;
 }
 
 //==============================================================================

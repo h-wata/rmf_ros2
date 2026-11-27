@@ -915,6 +915,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           // robot cannot localize onto the destination floor until the lift
           // arrives. Summoning the lift there would carry the robot back.
           const auto* floor = &map;
+          std::optional<agv::Destination> localize = std::nullopt;
           if (side == phases::RequestLift::Located::Inside)
           {
             const auto* current_lift = context->current_lift_destination();
@@ -922,6 +923,38 @@ std::optional<ExecutePlan> ExecutePlan::make(
               && current_lift->lift_name == lift->name())
             {
               floor = &current_lift->destination_floor;
+
+              // Like the summon of a LiftDoorOpen lane event, have the robot
+              // localize onto the destination floor once the lift arrives
+              // there. The estimate is the car vertex on that floor.
+              std::optional<std::size_t> car_wp;
+              std::string car_wp_name;
+              for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+              {
+                const auto& wp_i = graph.get_waypoint(i);
+                if (wp_i.get_map_name() == *floor && wp_i.in_lift()
+                  && wp_i.in_lift()->name() == lift->name())
+                {
+                  car_wp = i;
+                  if (const auto nav_params = context->nav_params())
+                  {
+                    car_wp_name = nav_params->get_vertex_name(graph, i);
+                  }
+                  else if (const std::string* n = wp_i.name())
+                  {
+                    car_wp_name = *n;
+                  }
+                  break;
+                }
+              }
+
+              localize = agv::Destination::Implementation::make(
+                *floor,
+                plan.get_waypoints().front().position(),
+                car_wp,
+                car_wp_name,
+                std::nullopt,
+                nullptr);
             }
           }
 
@@ -935,7 +968,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::RequestLift::PendingPhase>(
               context, lift->name(), *floor,
-              phases::RequestLift::Data{t0, side, plan_id}),
+              phases::RequestLift::Data{t0, side, plan_id, localize}),
             t0, rmf_traffic::Dependencies(), std::nullopt);
         }
       }

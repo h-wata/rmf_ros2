@@ -450,6 +450,15 @@ struct NavParams
     rmf_traffic::agv::Plan::StartSet locations,
     const RobotContext& context) const;
 
+  // If the robot is inside the car of a lift that it summoned from inside,
+  // give the starts on the car vertex of the floor that the lift session is
+  // taking it to. Otherwise give an empty start set.
+  rmf_traffic::agv::Plan::StartSet _lift_session_starts(
+    const RobotContext& context,
+    const std::string& map_name,
+    const Eigen::Vector3d& position,
+    rmf_traffic::Time start_time) const;
+
   rmf_traffic::agv::Plan::StartSet _descend_stacks(
     const rmf_traffic::agv::Graph& graph,
     rmf_traffic::agv::Plan::StartSet locations) const;
