@@ -1573,8 +1573,25 @@ void RobotContext::retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   const std::string& backtrace)
 {
-  _retain_mutex_groups(retain, _requesting_mutex_groups, backtrace);
-  _retain_mutex_groups(retain, _locked_mutex_groups, backtrace);
+  // A plan only describes where the robot is going, so a replan can leave out
+  // the group of the place the robot is standing on, e.g. the car of a lift.
+  // Keep the groups of the occupied location as well. If the robot is lost we
+  // cannot tell what it occupies, so keep everything.
+  if (_location.empty())
+    return;
+
+  auto keep = retain;
+  const auto& graph = navigation_graph();
+  for (const auto& start : _location)
+  {
+    if (start.lane().has_value())
+      keep.insert(graph.get_lane(*start.lane()).properties().in_mutex_group());
+    else
+      keep.insert(graph.get_waypoint(start.waypoint()).in_mutex_group());
+  }
+
+  _retain_mutex_groups(keep, _requesting_mutex_groups, backtrace);
+  _retain_mutex_groups(keep, _locked_mutex_groups, backtrace);
 }
 
 //==============================================================================
@@ -2427,7 +2444,10 @@ void RobotContext::_handle_mutex_group_manual_release(
     retain.erase(g);
   }
 
-  retain_mutex_groups(retain, "manual");
+  // An operator may release the group the robot is standing on, so do not go
+  // through retain_mutex_groups, which would keep it.
+  _retain_mutex_groups(retain, _requesting_mutex_groups, "manual");
+  _retain_mutex_groups(retain, _locked_mutex_groups, "manual");
 }
 
 //==============================================================================

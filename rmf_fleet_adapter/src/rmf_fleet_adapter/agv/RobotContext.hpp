@@ -852,7 +852,9 @@ public:
     std::unordered_set<std::string> groups,
     rmf_traffic::Time claim_time);
 
-  /// Retain only the mutex groups listed in the set. Release all others.
+  /// Retain only the mutex groups listed in the set and the groups of the
+  /// location that the robot currently occupies. Release all others. If the
+  /// robot is lost, nothing is released.
   void retain_mutex_groups(
     const std::unordered_set<std::string>& groups,
     const std::string& backtrace);

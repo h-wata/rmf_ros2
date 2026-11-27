@@ -132,6 +132,7 @@ if (BUILD_TESTING)
   ament_add_catch2(
     test_rmf_fleet_adapter
       test/main.cpp
+      test/agv/test_mutex_groups.cpp
       test/phases/MockAdapterFixture.cpp
       test/phases/test_DoorOpen.cpp
       test/phases/test_DoorClose.cpp
